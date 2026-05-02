@@ -177,7 +177,6 @@
                     <button type="button" data-val="large" class="car-btn btn-transition flex-1 py-2 text-sm rounded-lg text-gray-500">大車</button>
                     <input type="hidden" name="carType" id="carTypeInput" value="small">
                 </div>
-                <!-- 僅保留這個動態報錯文字 -->
                 <p id="carValidationError" class="hidden text-red-500 text-[10px] mt-2 text-center font-bold">⚠️ 人數或行李超過小車限制(小車限3人2件)，請選擇大車。</p>
             </div>
             <div class="grid grid-cols-3 gap-2" id="field-people">
@@ -254,7 +253,10 @@
                 <div class="flex items-end" id="field-signCheckbox"><label class="flex items-center gap-2 cursor-pointer bg-gray-50 border p-2 rounded-xl w-full"><input type="checkbox" name="addSign" id="addSignCheckbox" class="calc-trigger rounded"><span class="text-xs text-gray-600">舉牌 (+$100)</span></label></div>
             </div>
             <div id="signContentSection" class="hidden"><div id="field-signContent"><label class="text-xs text-gray-500 mb-1 block">舉牌內容 (必填)</label><input type="text" name="signContent" id="signContentInput" placeholder="請輸入牌面文字" class="w-full bg-gray-50 border rounded-xl px-4 py-3 text-sm"></div></div>
-            <div><label class="text-xs text-gray-500 mb-1 block">其他備註</label><textarea name="remarks" placeholder="如有大型行李、輪椅請告知。" class="w-full bg-gray-50 border rounded-xl px-4 py-3 text-sm min-h-[80px]"></textarea></div>
+            <div>
+                <label class="text-xs text-gray-500 mb-1 block">其他備註</label>
+                <textarea name="remarks" placeholder="如攜帶紙箱、運動版行李箱(胖胖箱)、高爾夫球具、雪板、輪椅、腳踏車箱、大型樂器...等，請務必告知。其他需要我們注意的事項也可在這說明。" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm min-h-[100px]"></textarea>
+            </div>
         </section>
 
         <!-- 免責聲明 -->
@@ -262,7 +264,6 @@
             <div id="precautionsContainer" class="bg-white/50 rounded-lg border overflow-hidden">
                 <button type="button" id="togglePrecautions" class="w-full px-4 py-3 text-sm font-bold text-prussian-blue flex items-center justify-between bg-white/80"><span id="readStatus">點我閱讀乘車注意事項</span><i data-lucide="chevron-down" id="precautionsIcon" class="w-4 h-4 transition-transform"></i></button>
                 <div id="precautionsContent" class="hidden px-4 py-3 text-[10px] text-gray-600 leading-relaxed border-t bg-white/30">
-                    <h4 class="font-bold mb-2 text-xs">【乘車注意事項】</h4>
                     <p class="mb-2"><strong>臨時加點：</strong> 司機無法私自增加停靠點(車輛皆有GPS）。如需臨時加點，請告知司機回報公司後方可執行。</p>
                     <p class="mb-2"><strong>預約車型：</strong> 請務必依「實際乘車人數」與「行李件數尺寸」預約合適車款。以免當天車輛乘載不下擔誤貴賓寶貴的時間。</p>
                     <p class="mb-2"><strong>行李與乘車規範：</strong> 全程請繫妥安全帶，座位及腳踏區僅限放隨身背包。若現場行李過多不符預約車型，公司有權拒載，且該趟行程恕不退費。</p>
@@ -437,25 +438,53 @@
             });
         }
 
-        // 動態生成座位選項
-        function adjustSeatOptions(infants, children) {
-            ['seatRear', 'seatFront'].forEach(name => {
-                const sel = document.getElementsByName(name)[0];
-                if (!sel) return;
-                const cur = parseInt(sel.value) || 0;
-                if (sel.options.length !== infants + 1) {
-                    sel.innerHTML = '';
-                    for(let i=0; i<=infants; i++) sel.innerHTML += `<option value="${i}">${i}</option>`;
-                    sel.value = Math.min(cur, infants);
+        // --- 動態生成座位選項：強制總和不可超過幼童數 ---
+        function adjustSeatOptions() {
+            const form = document.getElementById('bookingForm');
+            if (!form) return;
+            const fd = new FormData(form);
+            const infants = Number(fd.get('infants') || 0);
+            const children = Number(fd.get('children') || 0);
+
+            const seatRearEl = document.getElementsByName('seatRear')[0];
+            const seatFrontEl = document.getElementsByName('seatFront')[0];
+            const seatBoosterEl = document.getElementsByName('seatBooster')[0];
+
+            if (seatRearEl && seatFrontEl) {
+                let currentRear = Number(seatRearEl.value || 0);
+                let currentFront = Number(seatFrontEl.value || 0);
+
+                if (currentRear + currentFront > infants) {
+                    currentRear = Math.min(currentRear, infants);
+                    currentFront = infants - currentRear;
                 }
-            });
-            const selBooster = document.getElementsByName('seatBooster')[0];
-            if (selBooster) {
-                const curBooster = parseInt(selBooster.value) || 0;
-                if (selBooster.options.length !== children + 1) {
-                    selBooster.innerHTML = '';
-                    for(let i=0; i<=children; i++) selBooster.innerHTML += `<option value="${i}">${i}</option>`;
-                    selBooster.value = Math.min(curBooster, children);
+
+                // 重新渲染後向選項
+                const maxRear = infants - currentFront;
+                if (seatRearEl.options.length !== maxRear + 1 || Number(seatRearEl.value) !== currentRear) {
+                    seatRearEl.innerHTML = '';
+                    for (let i = 0; i <= maxRear; i++) seatRearEl.innerHTML += `<option value="${i}">${i}</option>`;
+                    seatRearEl.value = currentRear;
+                }
+
+                // 重新渲染前向選項
+                const maxFront = infants - currentRear;
+                if (seatFrontEl.options.length !== maxFront + 1 || Number(seatFrontEl.value) !== currentFront) {
+                    seatFrontEl.innerHTML = '';
+                    for (let i = 0; i <= maxFront; i++) seatFrontEl.innerHTML += `<option value="${i}">${i}</option>`;
+                    seatFrontEl.value = currentFront;
+                }
+            }
+
+            if (seatBoosterEl) {
+                let currentBooster = Number(seatBoosterEl.value || 0);
+                const maxBooster = children;
+                if (currentBooster > maxBooster) currentBooster = maxBooster;
+                
+                if (seatBoosterEl.options.length !== maxBooster + 1 || Number(seatBoosterEl.value) !== currentBooster) {
+                    seatBoosterEl.innerHTML = '';
+                    for(let i=0; i<=maxBooster; i++) seatBoosterEl.innerHTML += `<option value="${i}">${i}</option>`;
+                    seatBoosterEl.value = currentBooster;
                 }
             }
         }
@@ -512,14 +541,14 @@
         }
 
         function validateForm() {
+            // 動態更新座椅選單數量 (防止超過限制)
+            adjustSeatOptions();
+
             const form = document.getElementById('bookingForm');
             const fd = new FormData(form);
             const carType = fd.get('carType'); 
             const infants = Number(fd.get('infants') || 0);
             const children = Number(fd.get('children') || 0);
-
-            // 動態更新座椅選單數量
-            adjustSeatOptions(infants, children);
 
             const sR = Number(document.getElementsByName('seatRear')[0].value || 0);
             const sF = Number(document.getElementsByName('seatFront')[0].value || 0);
@@ -572,7 +601,6 @@
             if (totalP > 8) e.push({ id: 'field-people', msg: '總人數不可超過 8 人' });
             if (totalL > 8) e.push({ id: 'field-luggage', msg: '總行李不可超過 8 件' });
             
-            // 使用統一文案
             if (fd.get('carType') === 'small' && (totalP > 3 || totalL > 2)) {
                 e.push({ id: 'field-carType', msg: '人數或行李超過小車限制(小車限3人2件)，請選擇大車。' });
             }
@@ -614,8 +642,39 @@
             const fd = new FormData(form);
             const bId = `${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${Math.random().toString(36).substring(2,6).toUpperCase()}`;
             
-            // 明細文字格式化
-            const detail = `【預約明細 - ${bId}】\n預估總額：$${document.getElementById('totalDisplay').innerText}\n-------------------\n日期：${fd.get('rideDate')} ${fd.get('rideHour')}:${fd.get('rideMinute')}\n地點：${fd.get('zip')}${fd.get('city')}${fd.get('district')}${fd.get('addressDetail')}\n機場：${fd.get('airport')} (航班：${fd.get('flightNo')})\n姓名：${fd.get('passengerName')} ${fd.get('passengerTitle')}\n電話：${fd.get('phone')}\n車型：${fd.get('carType')==='small'?'小車':'大車'}\n座椅：後向${fd.get('seatRear')}/前向${fd.get('seatFront')}/增高${fd.get('seatBooster')}\n備註：${fd.get('remarks')||'無'}`;
+            // --- LINE 明細文字格式化 (每項獨立一欄，無內容補無) ---
+            const emailText = fd.get('email') || '無';
+            const signServiceText = fd.get('addSign') === 'on' ? '需要' : '無';
+            const signContentText = fd.get('addSign') === 'on' ? (fd.get('signContent') || '無') : '無';
+            const remarksText = fd.get('remarks') || '無';
+
+            const detail = `【預約明細 - ${bId}】
+預估總額：$${document.getElementById('totalDisplay').innerText}
+━━━━━━
+預約類型：${fd.get('type')}
+乘車日期：${fd.get('rideDate')}
+乘車時間：${fd.get('rideHour')}:${fd.get('rideMinute')}
+接送機場：${fd.get('airport')}
+航班編號：${fd.get('flightNo')}
+接送地址：${fd.get('zip')} ${fd.get('city')}${fd.get('district')}${fd.get('addressDetail')}
+LINE ID：${fd.get('lineId')}
+EMAIL：${emailText}
+乘車人姓名：${fd.get('passengerName')} ${fd.get('passengerTitle')}
+聯絡電話：${fd.get('phone')}
+接送車型：${fd.get('carType') === 'small' ? '小車' : '大車'}
+大人：${fd.get('adults')} 人
+4-12歲小孩：${fd.get('children')} 人
+4歲以下幼童：${fd.get('infants')} 人
+登機箱(20吋)：${fd.get('carryOnCount')} 件
+托運行李(21-29吋)：${fd.get('checkInCount')} 件
+後向座椅(0-2歲)：${fd.get('seatRear') || 0}
+前向座椅(2-4歲)：${fd.get('seatFront') || 0}
+增高墊(4-12歲)：${fd.get('seatBooster') || 0}
+付款方式：${fd.get('payment')}
+舉牌服務：${signServiceText}
+舉牌內容：${signContentText}
+其他備註：${remarksText}`;
+
             const successText = `您的預約已成功送出。\n請您耐心等候，客服人員確認訂單內容立即回覆您。謝謝`;
             
             const btn = document.getElementById('submitBtn'); 
@@ -631,7 +690,7 @@
                     ]);
                 }
                 
-                // 2. 傳送到 GOOGLE 表單 (直接送出，不使用 Retry 避免重複訂單)
+                // 2. 傳送到 GOOGLE 表單 (不使用 Retry)
                 await fetch(GAS_URL, { 
                     method: 'POST', 
                     body: JSON.stringify({ 
