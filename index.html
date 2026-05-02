@@ -177,7 +177,7 @@
                     <button type="button" data-val="large" class="car-btn btn-transition flex-1 py-2 text-sm rounded-lg text-gray-500">大車</button>
                     <input type="hidden" name="carType" id="carTypeInput" value="small">
                 </div>
-                <p id="carValidationError" class="hidden text-red-500 text-[10px] mt-2 text-center font-bold">⚠️ 人數或行李超過小車限制(小車限3人2件)，請選擇大車。</p>
+                <p id="carValidationError" class="hidden text-red-500 text-[10px] mt-2 text-center font-bold">⚠️ 人數或行李超過小車3人2件限制，系統已自動為您切換大車。</p>
             </div>
             <div class="grid grid-cols-3 gap-2" id="field-people">
                 <div>
@@ -545,8 +545,8 @@
             adjustSeatOptions();
 
             const form = document.getElementById('bookingForm');
-            const fd = new FormData(form);
-            const carType = fd.get('carType'); 
+            let fd = new FormData(form);
+            let carType = fd.get('carType'); 
             const infants = Number(fd.get('infants') || 0);
             const children = Number(fd.get('children') || 0);
 
@@ -554,22 +554,42 @@
             const sF = Number(document.getElementsByName('seatFront')[0].value || 0);
             const sB = Number(document.getElementsByName('seatBooster')[0].value || 0);
             
+            // 檢查車型限制 (超過小車限制強制切換大車)
+            const totalPeople = Number(fd.get('adults')) + children + infants;
+            const totalLuggage = Number(fd.get('carryOnCount')) + Number(fd.get('checkInCount'));
+            const carErrorMsg = document.getElementById('carValidationError');
+            
+            if (carType === 'small' && (totalPeople > 3 || totalLuggage > 2)) {
+                // 強制將隱藏 input 值改為 large
+                carType = 'large';
+                document.getElementById('carTypeInput').value = 'large';
+                
+                // 強制更新 UI 按鈕樣式
+                document.querySelectorAll('.car-btn').forEach(btn => { 
+                    btn.classList.remove('prussian-blue', 'text-white', 'shadow-md'); 
+                    btn.classList.add('text-gray-500'); 
+                });
+                const largeBtn = document.querySelector('.car-btn[data-val="large"]');
+                if (largeBtn) {
+                    largeBtn.classList.add('prussian-blue', 'text-white', 'shadow-md'); 
+                    largeBtn.classList.remove('text-gray-500');
+                }
+
+                // 顯示紅字提示
+                carErrorMsg.classList.remove('hidden');
+                
+                // 更新 fd 使後續計算能吃到新的 carType
+                fd = new FormData(form); 
+            } else {
+                carErrorMsg.classList.add('hidden');
+            }
+
             const match = fullQuoteData.find(q => q.airport === fd.get('airport') && q.city === fd.get('city') && q.district === fd.get('district'));
             let base = 0; if (match) base = (carType === 'small') ? Number(match.small) : Number(match.large);
 
             // 如果有小孩或幼童，顯示座椅選項
             document.getElementById('seatSection').classList.toggle('hidden', infants === 0 && children === 0);
             document.getElementById('signContentSection').classList.toggle('hidden', fd.get('addSign') !== 'on');
-
-            // 檢查車型限制
-            const totalPeople = Number(fd.get('adults')) + children + infants;
-            const totalLuggage = Number(fd.get('carryOnCount')) + Number(fd.get('checkInCount'));
-            const carErrorMsg = document.getElementById('carValidationError');
-            if (carType === 'small' && (totalPeople > 3 || totalLuggage > 2)) {
-                carErrorMsg.classList.remove('hidden');
-            } else {
-                carErrorMsg.classList.add('hidden');
-            }
 
             let extra = 0; let details = []; const totalSeats = sR + sF + sB;
             if (totalSeats > 0) { extra += totalSeats * 200; details.push(`座椅+$${totalSeats * 200}`); }
@@ -602,7 +622,7 @@
             if (totalL > 8) e.push({ id: 'field-luggage', msg: '總行李不可超過 8 件' });
             
             if (fd.get('carType') === 'small' && (totalP > 3 || totalL > 2)) {
-                e.push({ id: 'field-carType', msg: '人數或行李超過小車限制(小車限3人2件)，請選擇大車。' });
+                e.push({ id: 'field-carType', msg: '人數或行李超過小車3人2件限制，系統已自動為您切換大車。' });
             }
             
             if (Number(fd.get('infants')) > 0 && (Number(fd.get('seatRear')) + Number(fd.get('seatFront'))) !== Number(fd.get('infants'))) {
